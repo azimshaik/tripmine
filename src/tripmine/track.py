@@ -64,6 +64,7 @@ def build_stops(records: list[dict]) -> list[dict]:
     """Group chronological media records into stops."""
     dated = [r for r in records if r["ts"] is not None]
     dated.sort(key=lambda r: r["ts"])
+    trip_start = dated[0]["ts"].date()
 
     stops: list[dict] = []
     current: list[dict] = []
@@ -83,6 +84,8 @@ def build_stops(records: list[dict]) -> list[dict]:
             "lon": anchor["lon"] if anchor else None,
             "start": first.isoformat(timespec="minutes"),
             "end": last.isoformat(timespec="minutes"),
+            "day": (first.date() - trip_start).days + 1,
+            "date": first.date().isoformat(),
             "photo_count": len(photos),
             "video_count": len(videos),
             "duration_min": round((last - first).total_seconds() / 60),

@@ -42,34 +42,41 @@ MAP_TEMPLATE = """<!DOCTYPE html>
 <script src="{js}"></script>
 <script>
 const stops = {stops_json};
-const route = {route_json};
+const segments = {segments_json};
+const PALETTE = {palette_json};
 const map = L.map('map').setView({center}, {zoom});
 L.tileLayer('{tiles}', {{ attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }}).addTo(map);
 stops.forEach((s, i) => {{
   if (s.lat == null || s.lon == null) return;
-  const m = L.marker([s.lat, s.lon]).addTo(map)
-    .bindPopup(`<b>${{s.name}}</b><br>${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}${{s.altitude_median_m != null ? `<br>⛰ ${{s.altitude_median_m}} m` : ''}}`);
+  const color = PALETTE[(s.day - 1) % PALETTE.length] || '#888';
+  const icon = L.divIcon({{
+    className: '',
+    html: `<div style="background:${{color}};width:26px;height:26px;border-radius:50%;border:2px solid #fff;color:#fff;text-align:center;line-height:22px;font-weight:bold;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.4)">${{i + 1}}</div>`,
+    iconSize: [26, 26], iconAnchor: [13, 13],
+  }});
+  L.marker([s.lat, s.lon], {{ icon }}).addTo(map)
+    .bindPopup(`<b>${{s.name}}</b><br>Day ${{s.day}} · ${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}${{s.altitude_median_m != null ? `<br>⛰ ${{s.altitude_median_m}} m` : ''}}`);
 }});
-if (route && route.length > 1) {{
-  // real road path (OSRM)
-  L.polyline(route, {{ color: '#e07a2f', weight: 5, opacity: 0.85 }}).addTo(map);
-}} else {{
-  // fallback: straight lines between in-region stops
-  const fallback = [];
-  stops.forEach(s => {{ if (s.lat != null && s.lon != null) fallback.push([s.lat, s.lon]); }});
-  if (fallback.length > 1) L.polyline(fallback, {{ color: '#e07a2f', weight: 3, opacity: 0.6 }}).addTo(map);
+if (segments && segments.length) {{
+  // real road path (OSRM), colored per day
+  segments.forEach(seg => {{
+    L.polyline(seg.points, {{ color: seg.color, weight: 5, opacity: 0.85 }}).addTo(map);
+  }});
 }}
-const routeLatLngs = route ? route.map(p => L.latLng(p[0], p[1])) : null;
-if (routeLatLngs && routeLatLngs.length > 1) map.fitBounds(L.latLngBounds(routeLatLngs), {{ padding: [24, 24] }});
+const allPts = [];
+segments.forEach(seg => seg.points.forEach(p => allPts.push(L.latLng(p[0], p[1]))));
+if (allPts.length > 1) map.fitBounds(L.latLngBounds(allPts), {{ padding: [24, 24] }});
 
 // timeline
 const tl = document.getElementById('timeline');
 let lastDay = '';
 stops.forEach(s => {{
-  const day = s.start.slice(0, 10);
+  const day = s.date || s.start.slice(0, 10);
   if (day !== lastDay) {{
     const d = document.createElement('div');
-    d.className = 'day-divider'; d.textContent = day;
+    d.className = 'day-divider';
+    const dot = PALETTE[(s.day - 1) % PALETTE.length] || '#888';
+    d.innerHTML = `<span style="color:${{dot}}">●</span> Day ${{s.day}} — ${{day}}`;
     tl.appendChild(d); lastDay = day;
   }}
   const el = document.createElement('div');
@@ -105,16 +112,32 @@ def write_outputs(stops: list[dict], summary: dict, out_dir: Path) -> dict:
     else:
         center, zoom = [64.5, -19.5], 6
 
-    # real road path between in-region stops (OSRM), cached
+    # real road path between in-region stops (OSRM), cached, split by day
     region = routing.trip_region(stops)
     route = routing.get_route(
         [(s["lat"], s["lon"]) for s in region],
         cache_path=out_dir / "route_cache.json",
     )
-    route_json = json.dumps([[p[1], p[0]] for p in route["coordinates"]]) if route else "null"
+    segments = []
+    if route:
+        for day, coords in routing.split_route_by_day(route["coordinates"], region):
+            segments.append({
+                "day": day,
+                "color": routing.day_color(day),
+                "points": [[p[1], p[0]] for p in coords],
+            })
+    else:  # fallback: straight day-colored segments between in-region stops
+        for i in range(len(region) - 1):
+            a, b = region[i], region[i + 1]
+            segments.append({
+                "day": a["day"],
+                "color": routing.day_color(a["day"]),
+                "points": [[a["lat"], a["lon"]], [b["lat"], b["lon"]]],
+            })
 
+    days = sorted({s["day"] for s in stops if s.get("day")})
     summary_line = (
-        f"{summary['total']} files · {len(stops)} stops · "
+        f"{summary['total']} files · {len(days)} days · {len(stops)} stops · "
         f"{summary.get('first_date', '?')[:10]} → {summary.get('last_date', '?')[:10]}"
     )
     if route:
@@ -126,7 +149,8 @@ def write_outputs(stops: list[dict], summary: dict, out_dir: Path) -> dict:
         js=LEAFLET_JS,
         tiles=TILE_URL,
         stops_json=json.dumps(stops, ensure_ascii=False),
-        route_json=route_json,
+        segments_json=json.dumps(segments, ensure_ascii=False),
+        palette_json=json.dumps(routing.DAY_PALETTE),
         center=center,
         zoom=zoom,
     )

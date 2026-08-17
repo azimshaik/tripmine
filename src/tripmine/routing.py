@@ -16,6 +16,18 @@ from pathlib import Path
 OSRM_URL = "https://router.project-osrm.org/route/v1/driving/{coords}"
 USER_AGENT = "tripmine/0.2 (route geometry; https://github.com/azimshaik/tripmine)"
 
+# one color per trip day (markers + route segments)
+DAY_PALETTE = [
+    "#e63946", "#f77f00", "#2a9d8f", "#3a86ff",
+    "#7b2cbf", "#2d6a4f", "#c9184a", "#5f0f40",
+]
+
+
+def day_color(day: int | None) -> str:
+    if not day:
+        return "#888888"
+    return DAY_PALETTE[(day - 1) % len(DAY_PALETTE)]
+
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r = 6371.0
@@ -94,3 +106,32 @@ def trip_region(stops: list[dict], max_km: float = 600.0) -> list[dict]:
         if haversine_km(clat, clon, s["lat"], s["lon"]) <= max_km
     ]
     return kept or gps
+
+
+def split_route_by_day(route_coords: list[list[float]], stops: list[dict]) -> list[tuple[int, list]]:
+    """Split an OSRM LineString at the stop waypoints, keyed by stop day.
+
+    route_coords: [(lon, lat), ...]; stops: region stops in visit order.
+    Returns [(day, [(lon, lat), ...]), ...] — consecutive stops on the same
+    day produce adjacent segments of the same color.
+    """
+    if not route_coords or len(stops) < 2:
+        return []
+    idxs: list[int] = []
+    for s in stops:
+        tx, ty = s["lon"], s["lat"]
+        best, best_d = 0, float("inf")
+        start = idxs[-1] if idxs else 0
+        for i in range(start, len(route_coords)):
+            lon, lat = route_coords[i]
+            d = (lon - tx) ** 2 + (lat - ty) ** 2
+            if d < best_d:
+                best_d, best = d, i
+        idxs.append(best)
+    segments: list[tuple[int, list]] = []
+    for i in range(len(stops) - 1):
+        a, b = idxs[i], idxs[i + 1]
+        if b <= a:
+            continue
+        segments.append((stops[i]["day"], route_coords[a:b + 1]))
+    return segments

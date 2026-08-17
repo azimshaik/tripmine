@@ -129,54 +129,82 @@ def render(timeline: dict, out_path: Path, max_km: float = 600.0, cache_path: Pa
 
     draw = ImageDraw.Draw(img)
 
-    # route: real road path (OSRM) when available, else straight lines
+    def _hex_rgb(h: str) -> tuple:
+        h = h.lstrip("#")
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
+
+    # route: real road path (OSRM) when available, else straight lines — colored per day
     route = None
     if routing is not None:
         route = routing.get_route([(s["lat"], s["lon"]) for s in stops], cache_path=cache_path)
-    if route:
-        pts = [to_px(lon, lat) for lon, lat in route["coordinates"]]
+    if route and routing is not None:
+        segments = routing.split_route_by_day(route["coordinates"], stops)
     else:
-        pts = [to_px(s["lon"], s["lat"]) for s in stops]
-    draw.line(pts, fill=COLORS["route"], width=5, joint="curve")
+        segments = [
+            (stops[i]["day"],
+             [[stops[i]["lon"], stops[i]["lat"]], [stops[i + 1]["lon"], stops[i + 1]["lat"]]])
+            for i in range(len(stops) - 1)
+        ]
+    for day, coords in segments:
+        pts = [to_px(lon, lat) for lon, lat in coords]
+        color = _hex_rgb(routing.day_color(day)) if routing else COLORS["route"]
+        draw.line(pts, fill=color, width=5, joint="curve")
 
-    # numbered markers
+    # numbered markers (day color)
     try:
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 22)
         small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
     except OSError:
         font = small = ImageFont.load_default()
 
-    for i, (s, (px, py)) in enumerate(zip(stops, pts), 1):
+    for i, s in enumerate(stops, 1):
+        px, py = to_px(s["lon"], s["lat"])
         r = 16
-        draw.ellipse([px - r, py - r, px + r, py + r], fill=COLORS["marker"], outline=(255, 255, 255), width=3)
+        fill = _hex_rgb(routing.day_color(s["day"])) if routing and s.get("day") else COLORS["marker"]
+        draw.ellipse([px - r, py - r, px + r, py + r], fill=fill, outline=(255, 255, 255), width=3)
         label = str(i)
         bbox = draw.textbbox((0, 0), label, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
         draw.text((px - tw / 2 - bbox[0], py - th / 2 - bbox[1]), label, fill=(255, 255, 255), font=font)
 
-    # legend panel below the map
+    # legend panel below the map: header, day chips, then stops (day-color swatches)
+    days = sorted({s.get("day") for s in stops if s.get("day")})
     line_h = 24
-    legend = Image.new("RGB", (img.width, line_h * (len(stops) + 3) + 20), COLORS["bg"])
+    rows = 2 + len(days) + len(stops)
+    legend = Image.new("RGB", (img.width, line_h * rows + 20), COLORS["bg"])
     ld = ImageDraw.Draw(legend)
     header = "Trip stops (chronological):"
     if route:
         header += f"   Drive: {route['distance_km']} km · {route['duration_min']} min"
     ld.text((14, 8), header, fill=COLORS["text"], font=small)
+    y = 10 + line_h
+    for d in days:
+        first = next((s for s in stops if s.get("day") == d), None)
+        date_txt = f" — {first['date'][5:]}" if first else ""
+        swatch = _hex_rgb(routing.day_color(d)) if routing else COLORS["marker"]
+        ld.rectangle([14, y + 3, 26, y + 15], fill=swatch)
+        ld.text((34, y), f"Day {d}{date_txt}", fill=COLORS["text"], font=small)
+        y += line_h
+    y += line_h  # spacer row
     for i, s in enumerate(stops, 1):
-        y = 10 + line_h * (i + 1)
         date_part = f"{s['start'][5:16]}"
         name = s["name"] or "?"
         text = f"{i}. {date_part}  {name}  —  📷{s['photo_count']} 🎬{s['video_count']} ({s['duration_min']} min)"
         if s.get("altitude_median_m"):
             text += f" ⛰{s['altitude_median_m']:.0f}m"
-        ld.text((14, y), text, fill=COLORS["text"], font=small)
+        if s.get("day") and routing:
+            swatch = _hex_rgb(routing.day_color(s["day"]))
+            ld.rectangle([14, y + 3, 26, y + 15], fill=swatch)
+            ld.text((34, y), text, fill=COLORS["text"], font=small)
+        else:
+            ld.text((14, y), text, fill=COLORS["text"], font=small)
+        y += line_h
 
     canvas = Image.new("RGB", (img.width, img.height + legend.height), COLORS["bg"])
     canvas.paste(img, (0, 0))
     canvas.paste(legend, (0, img.height))
     canvas.save(out_path)
     return out_path
-
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
