@@ -52,6 +52,13 @@ uv run --with pillow python scripts/render_static_map.py tracker/timeline.json -
 - Reverse geocoding: OpenStreetMap Nominatim (free, generous limits)
 - Maps: self-contained HTML with OpenStreetMap tiles
 
+## Example output
+
+A real dogfood: the **Iceland 2019 story page** — 8 story beats, 6 real photos each,
+built entirely from EXIF GPS + metadata:
+
+→ [`story/iceland-2019/index.html`](story/iceland-2019/index.html)
+
 ## License
 
 MIT © 2026 Azim Shaik
