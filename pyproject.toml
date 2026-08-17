@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tripmine"
+version = "0.1.0"
+description = "Mine trips from your photo archives — turn Google Takeout / iCloud exports into an interactive map and day-by-day timeline"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Azim Shaik" }]
+keywords = ["photos", "exif", "gps", "travel", "google-takeout", "icloud", "map", "timeline"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+tripmine = "tripmine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
