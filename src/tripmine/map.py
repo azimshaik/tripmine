@@ -55,7 +55,7 @@ stops.forEach((s, i) => {{
     iconSize: [26, 26], iconAnchor: [13, 13],
   }});
   L.marker([s.lat, s.lon], {{ icon }}).addTo(map)
-    .bindPopup(`<b>${{s.name}}</b><br>Day ${{s.day}} · ${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}${{s.altitude_median_m != null ? `<br>⛰ ${{s.altitude_median_m}} m` : ''}}`);
+    .bindPopup(`<b>${{s.name}}</b><br>Day ${{s.day}} · ${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}${{s.stay ? `<br>🛏️ ${{s.stay.name}}` : ''}}${{s.altitude_median_m != null ? `<br>⛰ ${{s.altitude_median_m}} m` : ''}}`);
 }});
 if (segments && segments.length) {{
   // real road path (OSRM), colored per day
@@ -82,7 +82,7 @@ stops.forEach(s => {{
   const el = document.createElement('div');
   el.className = 'stop';
   const when = s.end === s.start ? s.start.slice(11) : s.start.slice(11) + ' – ' + s.end.slice(11);
-  el.innerHTML = `<h3>${{s.name}}</h3><div class="when">${{when}}</div><div class="stats">📷 ${{s.photo_count}} · 🎬 ${{s.video_count}} · ${{s.duration_min}} min</div>`;
+  el.innerHTML = `<h3>${{s.name}}</h3><div class="when">${{when}}</div><div class="stats">📷 ${{s.photo_count}} · 🎬 ${{s.video_count}} · ${{s.duration_min}} min</div>${{s.stay ? `<div class="when">🛏️ ${{s.stay.name}}</div>` : ''}}`;
   tl.appendChild(el);
 }});
 </script>

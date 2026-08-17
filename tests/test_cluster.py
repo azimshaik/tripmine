@@ -90,3 +90,38 @@ def test_split_route_by_day():
     assert day == 1  # segment takes the day of its starting stop
     assert seg_coords[0] == [-22.62, 63.99]
     assert seg_coords[-1] == [-20.29, 64.31]
+
+
+def test_detect_nights():
+    from tripmine.nights import detect_nights
+
+    records = [rec(0, 63.9, -22.6), rec(5, 63.9, -22.6), rec(490, 63.9, -22.6)]  # 8h05m gap
+    nights = detect_nights(records)
+    assert len(nights) == 1
+    assert nights[0]["date"] == "2019-03-25"
+    assert nights[0]["evening"]["ts"] == (T0 + timedelta(minutes=5)).isoformat()
+    assert nights[0]["morning"]["ts"] == (T0 + timedelta(minutes=490)).isoformat()
+    assert nights[0]["evening"]["lat"] == 63.9
+
+
+def test_merge_stays():
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from tripmine.track import merge_stays
+
+    stops: list[dict] = [{"start": "2019-03-25T21:00", "end": "2019-03-25T22:52"}]
+    payload = [{
+        "date": "2019-03-25",
+        "evening": {"ts": "2019-03-25T21:56:14"},
+        "confirmed": {"name": "HI Reykjavik Downtown"},
+    }]
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(payload, f)
+        p = Path(f.name)
+    try:
+        assert merge_stays(stops, p) == 1
+        assert stops[0]["stay"]["name"] == "HI Reykjavik Downtown"
+    finally:
+        p.unlink()

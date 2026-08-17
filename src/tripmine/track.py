@@ -7,8 +7,10 @@ minutes) or a large GPS jump indicates travel without photos.
 
 from __future__ import annotations
 
+import json
 import math
 from datetime import datetime
+from pathlib import Path
 
 GAP_MINUTES = 90          # new stop when photo gap exceeds this
 MAX_JUMP_KM = 30.0        # new stop when GPS jump exceeds this (no photos in between)
@@ -108,6 +110,41 @@ def build_stops(records: list[dict]) -> list[dict]:
 
     close_stop()
     return stops
+
+
+def merge_stays(stops: list[dict], nights_path: Path) -> int:
+    """Attach confirmed stays from nights.json onto the stop covering the night.
+
+    The evening anchor timestamp of a confirmed night falls inside the stop
+    where the travelers actually were when the night began.
+    """
+    if not nights_path.exists():
+        return 0
+    try:
+        nights = json.loads(nights_path.read_text())
+    except json.JSONDecodeError:
+        return 0
+    count = 0
+    for n in nights:
+        conf = n.get("confirmed")
+        if not conf:
+            continue
+        eve_ts = n["evening"]["ts"]
+        stop = next((s for s in stops if s["start"] <= eve_ts <= s["end"]), None)
+        if stop is None:
+            stop = min(
+                stops,
+                key=lambda s: abs(
+                    (datetime.fromisoformat(s["start"]) - datetime.fromisoformat(eve_ts)).total_seconds()
+                ),
+            )
+        stop["stay"] = {
+            "name": conf.get("name"),
+            "address": conf.get("address"),
+            "night": n.get("night"),
+        }
+        count += 1
+    return count
 
 
 def summarize(records: list[dict]) -> dict:

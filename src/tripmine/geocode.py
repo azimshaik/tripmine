@@ -28,13 +28,13 @@ def _shorten_display(name: str, max_parts: int = 3) -> str:
     return ", ".join(parts[:max_parts])
 
 
-def reverse_geocode(lat: float, lon: float, cache: dict) -> str | None:
+def reverse_geocode(lat: float, lon: float, cache: dict, zoom: int = 14) -> str | None:
     """Return a short place name for a coordinate. Uses and updates cache dict."""
     key = f"{lat:.5f},{lon:.5f}"
     if key in cache:
         return cache[key]
     params = urllib.parse.urlencode(
-        {"format": "jsonv2", "lat": lat, "lon": lon, "zoom": 14}
+        {"format": "jsonv2", "lat": lat, "lon": lon, "zoom": zoom}
     )
     req = urllib.request.Request(
         f"{NOMINATIM_URL}?{params}",

@@ -41,6 +41,7 @@ uv run --with pillow python scripts/render_static_map.py tracker/timeline.json -
 - [x] Real road routes (OSRM, no API key) + day color-coding
 - [x] Rich metadata: altitude, speed, direction, accuracy, camera specs
 - [x] `gallery` — per-stop thumbnails, quality-ranked picks, contact sheets
+- [x] `nights` — overnight detection from evening/morning GPS anchors + confirmed stays on map
 - [ ] iCloud export support (zip is handled; direct API later)
 - [ ] Story suggestions (which stops deserve a video)
 - [ ] Video script generation for your travel channel

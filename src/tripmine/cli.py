@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tripmine import __version__
 from tripmine import extract as extract_mod
-from tripmine import gallery, geocode, map as map_mod, metadata, track
+from tripmine import gallery, geocode, map as map_mod, metadata, nights, track
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
@@ -52,6 +52,11 @@ def cmd_track(args: argparse.Namespace) -> None:
     cache_path = Path(args.output) / "geocode_cache.json"
     geocode.geocode_stops(stops, cache_path)
 
+    nights_path = Path(args.output) / "nights.json"
+    merged = track.merge_stays(stops, nights_path)
+    if merged:
+        print(f"  ✓ {merged} confirmed stay(s) merged into stops")
+
     out_dir = Path(args.output)
     written = map_mod.write_outputs(stops, summary, out_dir)
     print(f"✓ timeline → {written['timeline']}")
@@ -77,6 +82,37 @@ def cmd_inspect(args: argparse.Namespace) -> None:
     print(f"  sample: {records[0]['source']} | {records[0]['model']} | "
           f"alt {records[0].get('altitude')}m | spd {records[0].get('speed')}km/h | "
           f"dir {records[0].get('direction')}° | acc {records[0].get('accuracy')}m")
+
+
+def cmd_nights(args: argparse.Namespace) -> None:
+    src = Path(args.source)
+    if not src.exists():
+        print(f"✗ source not found: {src}", file=sys.stderr)
+        raise SystemExit(1)
+    if src.is_dir():
+        print("⏳ reading metadata (exiftool)...")
+        records = metadata.read_all(src)
+    else:
+        try:
+            records = json.loads(src.read_text())
+        except json.JSONDecodeError:
+            print(f"✗ not a valid metadata.json: {src}", file=sys.stderr)
+            raise SystemExit(1)
+
+    detected = nights.detect_nights(records)
+    cache: dict = {}
+    cache_path = Path(args.output).parent / "geocode_cache.json"
+    if cache_path.exists():
+        cache = json.loads(cache_path.read_text())
+    nights.geocode_nights(detected, geocode.reverse_geocode, cache)
+    nights.merge_confirmed(detected, Path(args.output))
+    nights.write_nights(detected, Path(args.output))
+    cache_path.write_text(json.dumps(cache, indent=1))
+
+    for n in detected:
+        stay = n["confirmed"]["name"] if n["confirmed"] else "—"
+        print(f"  N{n['night']} {n['date']}  {str(n['area'])[:36]:36} gap {n['gap_hours']}h  stay: {stay}")
+    print(f"✓ nights → {args.output}")
 
 
 def cmd_gallery(args: argparse.Namespace) -> None:
@@ -137,6 +173,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_gallery.add_argument("--max-per-stop", type=int, default=24, help="max thumbnails per stop")
     p_gallery.add_argument("--no-video-thumbs", action="store_true", help="skip video first-frames")
     p_gallery.set_defaults(func=cmd_gallery)
+
+    p_nights = sub.add_parser(
+        "nights", help="Detect overnight gaps (where you slept) + annotate confirmed stays"
+    )
+    p_nights.add_argument("source", help="photos dir or metadata.json")
+    p_nights.add_argument("-o", "--output", default="nights.json", help="output json path")
+    p_nights.set_defaults(func=cmd_nights)
 
     return parser
 

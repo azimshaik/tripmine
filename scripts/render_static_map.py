@@ -192,6 +192,8 @@ def render(timeline: dict, out_path: Path, max_km: float = 600.0, cache_path: Pa
         text = f"{i}. {date_part}  {name}  —  📷{s['photo_count']} 🎬{s['video_count']} ({s['duration_min']} min)"
         if s.get("altitude_median_m"):
             text += f" ⛰{s['altitude_median_m']:.0f}m"
+        if s.get("stay"):
+            text += f"  | stay: {s['stay']['name']}"
         if s.get("day") and routing:
             swatch = _hex_rgb(routing.day_color(s["day"]))
             ld.rectangle([14, y + 3, 26, y + 15], fill=swatch)
