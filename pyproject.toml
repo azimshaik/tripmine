@@ -19,6 +19,9 @@ classifiers = [
     "Topic :: Multimedia :: Graphics",
     "Topic :: Utilities",
 ]
+dependencies = [
+    "pillow>=12.3.0",
+]
 
 [project.scripts]
 tripmine = "tripmine.cli:main"

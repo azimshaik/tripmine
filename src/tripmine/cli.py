@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tripmine import __version__
 from tripmine import extract as extract_mod
-from tripmine import geocode, map as map_mod, metadata, track
+from tripmine import gallery, geocode, map as map_mod, metadata, track
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
@@ -79,6 +79,22 @@ def cmd_inspect(args: argparse.Namespace) -> None:
           f"dir {records[0].get('direction')}° | acc {records[0].get('accuracy')}m")
 
 
+def cmd_gallery(args: argparse.Namespace) -> None:
+    timeline_path = Path(args.timeline)
+    if not timeline_path.exists():
+        print(f"✗ timeline not found: {timeline_path}", file=sys.stderr)
+        raise SystemExit(1)
+    timeline = json.loads(timeline_path.read_text())
+    out_dir = Path(args.output)
+    result = gallery.build_gallery(
+        timeline, Path(args.photos), out_dir,
+        max_per_stop=args.max_per_stop,
+        ffmpeg=not args.no_video_thumbs,
+    )
+    print(f"✓ gallery → {result['html']} ({result['thumbs']} thumbnails)")
+    print(f"✓ contact sheets → {len(result['sheets'])}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tripmine",
@@ -111,6 +127,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_inspect.add_argument("source", help="photo/metadata directory")
     p_inspect.add_argument("-o", "--output", default="metadata.json", help="output json path")
     p_inspect.set_defaults(func=cmd_inspect)
+
+    p_gallery = sub.add_parser(
+        "gallery", help="Per-stop photo gallery: thumbnails, quality picks, contact sheets"
+    )
+    p_gallery.add_argument("timeline", help="path to timeline.json")
+    p_gallery.add_argument("photos", help="photo directory (the extracted photos)")
+    p_gallery.add_argument("-o", "--output", default="gallery", help="output dir")
+    p_gallery.add_argument("--max-per-stop", type=int, default=24, help="max thumbnails per stop")
+    p_gallery.add_argument("--no-video-thumbs", action="store_true", help="skip video first-frames")
+    p_gallery.set_defaults(func=cmd_gallery)
 
     return parser
 
