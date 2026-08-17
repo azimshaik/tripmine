@@ -47,7 +47,7 @@ const polyline = [];
 stops.forEach((s, i) => {{
   if (s.lat == null || s.lon == null) return;
   const m = L.marker([s.lat, s.lon]).addTo(map)
-    .bindPopup(`<b>${{s.name}}</b><br>${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}`);
+    .bindPopup(`<b>${{s.name}}</b><br>${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}${{s.altitude_median_m != null ? `<br>⛰ ${{s.altitude_median_m}} m` : ''}}`);
   markers.push(m); polyline.push([s.lat, s.lon]);
 }});
 if (polyline.length > 1) L.polyline(polyline, {{ color: '#e07a2f', weight: 3 }}).addTo(map);

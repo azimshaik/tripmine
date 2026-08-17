@@ -153,6 +153,8 @@ def render(timeline: dict, out_path: Path, max_km: float = 600.0) -> Path:
         date_part = f"{s['start'][5:16]}"
         name = s["name"] or "?"
         text = f"{i}. {date_part}  {name}  —  📷{s['photo_count']} 🎬{s['video_count']} ({s['duration_min']} min)"
+        if s.get("altitude_median_m"):
+            text += f" ⛰{s['altitude_median_m']:.0f}m"
         ld.text((14, y), text, fill=COLORS["text"], font=small)
 
     canvas = Image.new("RGB", (img.width, img.height + legend.height), COLORS["bg"])

@@ -12,10 +12,22 @@ EXIFTOOL_FIELDS = [
     "CreateDate",
     "GPSLatitude",
     "GPSLongitude",
+    "GPSAltitude",
+    "GPSSpeed",
+    "GPSImgDirection",
+    "GPSHPositioningError",
     "Model",
     "Make",
     "FileType",
     "MediaDuration",
+    "ImageWidth",
+    "ImageHeight",
+    "VideoFrameRate",
+    "ExposureTime",
+    "FNumber",
+    "ISO",
+    "FocalLength",
+    "LensModel",
 ]
 
 DATE_FORMATS = (
@@ -52,7 +64,10 @@ def read_all(directory: Path) -> list[dict]:
         "exiftool",
         "-r", "-json", "-n", "-q",
         "-DateTimeOriginal", "-CreateDate", "-GPSLatitude", "-GPSLongitude",
-        "-Model", "-Make", "-FileType", "-FileModifyDate", "-MediaDuration",
+        "-GPSAltitude", "-GPSSpeed", "-GPSImgDirection", "-GPSHPositioningError",
+        "-Model", "-Make", "-FileType", "-MediaDuration",
+        "-ImageWidth", "-ImageHeight", "-VideoFrameRate",
+        "-ExposureTime", "-FNumber", "-ISO", "-FocalLength", "-LensModel",
         str(directory),
     ]
     try:
@@ -84,7 +99,19 @@ def read_all(directory: Path) -> list[dict]:
                 "lon": lon,
                 "model": item.get("Model") or item.get("Make") or "",
                 "filetype": item.get("FileType") or Path(path).suffix.lstrip(".").upper(),
-                "duration": _duration(item.get("MediaDuration")) if "MediaDuration" in item else None,
+                "duration": _duration(item.get("MediaDuration")),
+                "altitude": _coord(item.get("GPSAltitude")),
+                "speed": _coord(item.get("GPSSpeed")),
+                "direction": _coord(item.get("GPSImgDirection")),
+                "accuracy": _coord(item.get("GPSHPositioningError")),
+                "width": _int(item.get("ImageWidth")),
+                "height": _int(item.get("ImageHeight")),
+                "fps": _coord(item.get("VideoFrameRate")),
+                "shutter": _coord(item.get("ExposureTime")),
+                "aperture": _coord(item.get("FNumber")),
+                "iso": _int(item.get("ISO")),
+                "focal_mm": _coord(item.get("FocalLength")),
+                "lens": item.get("LensModel") or "",
             }
         )
     return records
@@ -95,6 +122,15 @@ def _coord(value) -> float | None:
         return None
     try:
         return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int(value) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
     except (TypeError, ValueError):
         return None
 

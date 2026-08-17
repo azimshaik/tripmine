@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -57,6 +58,27 @@ def cmd_track(args: argparse.Namespace) -> None:
     print(f"✓ map      → {written['map']}")
 
 
+def cmd_inspect(args: argparse.Namespace) -> None:
+    source = Path(args.source)
+    if not source.exists():
+        print(f"✗ source not found: {source}", file=sys.stderr)
+        raise SystemExit(1)
+    print("⏳ reading metadata (exiftool)...")
+    records = metadata.read_all(source)
+    out_path = Path(args.output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    json_safe = []
+    for r in records:
+        copy = dict(r)
+        copy["ts"] = r["ts"].isoformat() if r["ts"] else None
+        json_safe.append(copy)
+    out_path.write_text(json.dumps(json_safe, indent=1, ensure_ascii=False))
+    print(f"✓ {len(records)} records → {out_path}")
+    print(f"  sample: {records[0]['source']} | {records[0]['model']} | "
+          f"alt {records[0].get('altitude')}m | spd {records[0].get('speed')}km/h | "
+          f"dir {records[0].get('direction')}° | acc {records[0].get('accuracy')}m")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tripmine",
@@ -82,6 +104,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_track.add_argument("source", help="photo/metadata directory")
     p_track.add_argument("-o", "--output", default="tracker", help="output dir")
     p_track.set_defaults(func=cmd_track)
+
+    p_inspect = sub.add_parser(
+        "inspect", help="Dump full metadata (altitude, speed, direction, camera specs) for every file"
+    )
+    p_inspect.add_argument("source", help="photo/metadata directory")
+    p_inspect.add_argument("-o", "--output", default="metadata.json", help="output json path")
+    p_inspect.set_defaults(func=cmd_inspect)
 
     return parser
 
