@@ -1,9 +1,4 @@
-"""tripmine CLI — scaffold stage.
-
-Real logic lands as the Iceland dataset feeds through (v0.1):
-  extract: Takeout zip -> normalized photos + JSON metadata
-  track:   EXIF -> places -> stops -> timeline.json + map.html
-"""
+"""tripmine CLI — extract photo exports, build trip trackers."""
 
 from __future__ import annotations
 
@@ -12,15 +7,8 @@ import sys
 from pathlib import Path
 
 from tripmine import __version__
-
-
-def _not_built_yet(name: str) -> None:
-    print(
-        f"⛏️  `tripmine {name}` is scaffolded but not built yet — "
-        "the real implementation lands with the v0.1 Iceland build.",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
+from tripmine import extract as extract_mod
+from tripmine import geocode, map as map_mod, metadata, track
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
@@ -28,8 +16,13 @@ def cmd_extract(args: argparse.Namespace) -> None:
     if not source.exists():
         print(f"✗ source not found: {source}", file=sys.stderr)
         raise SystemExit(1)
-    print(f"✓ input found: {source} ({source.stat().st_size / 1e9:.2f} GB)")
-    _not_built_yet("extract")
+    out_dir = Path(args.output)
+    try:
+        count = extract_mod.extract(source, out_dir, keep_sidecars=not args.no_sidecars)
+    except FileNotFoundError as e:
+        print(f"✗ {e}", file=sys.stderr)
+        raise SystemExit(1)
+    print(f"✓ extracted {count} media files → {out_dir}")
 
 
 def cmd_track(args: argparse.Namespace) -> None:
@@ -37,8 +30,31 @@ def cmd_track(args: argparse.Namespace) -> None:
     if not source.exists():
         print(f"✗ source not found: {source}", file=sys.stderr)
         raise SystemExit(1)
-    print(f"✓ input found: {source}")
-    _not_built_yet("track")
+
+    print("⏳ reading metadata (exiftool)...")
+    records = metadata.read_all(source)
+    if not records:
+        print("✗ no media files found", file=sys.stderr)
+        raise SystemExit(1)
+
+    summary = track.summarize(records)
+    print(
+        f"  {summary['total']} files · {summary['photos']} photos · {summary['videos']} videos · "
+        f"{summary['with_gps']} with GPS"
+    )
+
+    print("⏳ clustering into stops...")
+    stops = track.build_stops(records)
+    print(f"  {len(stops)} stops")
+
+    print("⏳ reverse-geocoding (OSM Nominatim)...")
+    cache_path = Path(args.output) / "geocode_cache.json"
+    geocode.geocode_stops(stops, cache_path)
+
+    out_dir = Path(args.output)
+    written = map_mod.write_outputs(stops, summary, out_dir)
+    print(f"✓ timeline → {written['timeline']}")
+    print(f"✓ map      → {written['map']}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,10 +66,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_extract = sub.add_parser(
-        "extract", help="Unpack a Google Takeout export into photos + metadata"
+        "extract", help="Unpack a Google Takeout / iCloud export into photos + metadata"
     )
     p_extract.add_argument("source", help="path to takeout zip or extracted dir")
     p_extract.add_argument("-o", "--output", default="photos", help="output dir")
+    p_extract.add_argument(
+        "--no-sidecars", action="store_true",
+        help="skip .json sidecar files (Google Takeout metadata)",
+    )
     p_extract.set_defaults(func=cmd_extract)
 
     p_track = sub.add_parser(

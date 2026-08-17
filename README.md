@@ -21,22 +21,24 @@ Built while mining a real **2019 Iceland road trip** (~1,000 photos) — this pr
 ## Quick start
 
 ```bash
-pip install tripmine          # not on PyPI yet — coming after v0.1
+# Unpack your Google Takeout / iCloud export zip
+tripmine extract ~/Downloads/takeout.zip -o photos/
 
-# Unpack your Google Takeout zip
-tripmine extract ~/Downloads/takeout-20260817.zip -o ~/photos
+# Build the tracker (needs exiftool: brew install exiftool)
+tripmine track photos/ -o tracker/
+# → tracker/timeline.json + tracker/map.html (interactive Leaflet map)
 
-# Build the tracker
-tripmine track ~/photos -o tracker/
-# → tracker/timeline.json + tracker/map.html
+# Static PNG map (no browser needed; Pillow only)
+uv run --with pillow python scripts/render_static_map.py tracker/timeline.json -o tracker/map.png
 ```
 
 ## Roadmap
 
-- [x] Project scaffold (this repo)
-- [ ] `extract` — Takeout zip → normalized photos + JSON metadata
-- [ ] `track` — EXIF → places → stops → timeline + interactive map
-- [ ] iCloud export support
+- [x] Project scaffold
+- [x] `extract` — Takeout/iCloud zip → photos + metadata
+- [x] `track` — EXIF → places → stops → timeline + interactive map
+- [x] Static PNG map renderer (Pillow-only)
+- [ ] iCloud export support (zip is handled; direct API later)
 - [ ] Story suggestions (which stops deserve a video)
 - [ ] Video script generation for your travel channel
 
