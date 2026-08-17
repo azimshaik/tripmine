@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tripmine import routing
+
 LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
 TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -40,18 +42,25 @@ MAP_TEMPLATE = """<!DOCTYPE html>
 <script src="{js}"></script>
 <script>
 const stops = {stops_json};
+const route = {route_json};
 const map = L.map('map').setView({center}, {zoom});
 L.tileLayer('{tiles}', {{ attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }}).addTo(map);
-const markers = [];
-const polyline = [];
 stops.forEach((s, i) => {{
   if (s.lat == null || s.lon == null) return;
   const m = L.marker([s.lat, s.lon]).addTo(map)
     .bindPopup(`<b>${{s.name}}</b><br>${{s.start}} → ${{s.end}}<br>📷 ${{s.photo_count}} · 🎬 ${{s.video_count}}${{s.altitude_median_m != null ? `<br>⛰ ${{s.altitude_median_m}} m` : ''}}`);
-  markers.push(m); polyline.push([s.lat, s.lon]);
 }});
-if (polyline.length > 1) L.polyline(polyline, {{ color: '#e07a2f', weight: 3 }}).addTo(map);
-if (polyline.length) map.fitBounds(L.latLngBounds(polyline), {{ padding: [24, 24] }});
+if (route && route.length > 1) {{
+  // real road path (OSRM)
+  L.polyline(route, {{ color: '#e07a2f', weight: 5, opacity: 0.85 }}).addTo(map);
+}} else {{
+  // fallback: straight lines between in-region stops
+  const fallback = [];
+  stops.forEach(s => {{ if (s.lat != null && s.lon != null) fallback.push([s.lat, s.lon]); }});
+  if (fallback.length > 1) L.polyline(fallback, {{ color: '#e07a2f', weight: 3, opacity: 0.6 }}).addTo(map);
+}}
+const routeLatLngs = route ? route.map(p => L.latLng(p[0], p[1])) : null;
+if (routeLatLngs && routeLatLngs.length > 1) map.fitBounds(L.latLngBounds(routeLatLngs), {{ padding: [24, 24] }});
 
 // timeline
 const tl = document.getElementById('timeline');
@@ -96,10 +105,20 @@ def write_outputs(stops: list[dict], summary: dict, out_dir: Path) -> dict:
     else:
         center, zoom = [64.5, -19.5], 6
 
+    # real road path between in-region stops (OSRM), cached
+    region = routing.trip_region(stops)
+    route = routing.get_route(
+        [(s["lat"], s["lon"]) for s in region],
+        cache_path=out_dir / "route_cache.json",
+    )
+    route_json = json.dumps([[p[1], p[0]] for p in route["coordinates"]]) if route else "null"
+
     summary_line = (
         f"{summary['total']} files · {len(stops)} stops · "
         f"{summary.get('first_date', '?')[:10]} → {summary.get('last_date', '?')[:10]}"
     )
+    if route:
+        summary_line += f" · 🚗 {route['distance_km']} km ({route['duration_min']} min drive)"
     html = MAP_TEMPLATE.format(
         title="Iceland trip tracker",
         summary=summary_line,
@@ -107,6 +126,7 @@ def write_outputs(stops: list[dict], summary: dict, out_dir: Path) -> dict:
         js=LEAFLET_JS,
         tiles=TILE_URL,
         stops_json=json.dumps(stops, ensure_ascii=False),
+        route_json=route_json,
         center=center,
         zoom=zoom,
     )

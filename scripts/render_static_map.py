@@ -19,6 +19,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+try:  # tripmine installed (uv run) → real road routing; plain python → straight lines
+    from tripmine import routing
+except ImportError:
+    routing = None
+
 TILE = 256
 USER_AGENT = "tripmine/0.1 (static map renderer; https://github.com/azimshaik/tripmine)"
 TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -72,7 +77,7 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def render(timeline: dict, out_path: Path, max_km: float = 600.0) -> Path:
+def render(timeline: dict, out_path: Path, max_km: float = 600.0, cache_path: Path | None = None) -> Path:
     stops = [s for s in timeline["stops"] if s["lat"] is not None]
     if not stops:
         raise ValueError("no stops with GPS coordinates")
@@ -124,8 +129,14 @@ def render(timeline: dict, out_path: Path, max_km: float = 600.0) -> Path:
 
     draw = ImageDraw.Draw(img)
 
-    # route polyline (chronological)
-    pts = [to_px(s["lon"], s["lat"]) for s in stops]
+    # route: real road path (OSRM) when available, else straight lines
+    route = None
+    if routing is not None:
+        route = routing.get_route([(s["lat"], s["lon"]) for s in stops], cache_path=cache_path)
+    if route:
+        pts = [to_px(lon, lat) for lon, lat in route["coordinates"]]
+    else:
+        pts = [to_px(s["lon"], s["lat"]) for s in stops]
     draw.line(pts, fill=COLORS["route"], width=5, joint="curve")
 
     # numbered markers
@@ -145,9 +156,12 @@ def render(timeline: dict, out_path: Path, max_km: float = 600.0) -> Path:
 
     # legend panel below the map
     line_h = 24
-    legend = Image.new("RGB", (img.width, line_h * (len(stops) + 2) + 20), COLORS["bg"])
+    legend = Image.new("RGB", (img.width, line_h * (len(stops) + 3) + 20), COLORS["bg"])
     ld = ImageDraw.Draw(legend)
-    ld.text((14, 8), "Trip stops (chronological):", fill=COLORS["text"], font=small)
+    header = "Trip stops (chronological):"
+    if route:
+        header += f"   Drive: {route['distance_km']} km · {route['duration_min']} min"
+    ld.text((14, 8), header, fill=COLORS["text"], font=small)
     for i, s in enumerate(stops, 1):
         y = 10 + line_h * (i + 1)
         date_part = f"{s['start'][5:16]}"
@@ -172,7 +186,10 @@ def main() -> None:
                     help="drop stops farther than N km from the trip center (0 = keep all)")
     args = ap.parse_args()
     timeline = json.loads(Path(args.timeline).read_text())
-    out = render(timeline, Path(args.output), max_km=args.max_km)
+    out = render(
+        timeline, Path(args.output), max_km=args.max_km,
+        cache_path=Path(args.timeline).parent / "route_cache.json",
+    )
     print(f"✓ map → {out}")
 
 
