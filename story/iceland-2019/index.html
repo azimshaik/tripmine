@@ -44,6 +44,7 @@ figcaption { font-family:-apple-system, sans-serif; font-size:11.5px; color:#777
 .warn { background:#fdf1ec; border:1px solid #ecc9b8; border-left:4px solid #c0392b;
   border-radius:8px; padding:14px 20px; margin:26px 0 10px; font-size:16px; line-height:1.6; }
 .warn b { color:#c0392b; }
+.mapimg { width:100%; border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,.15); margin-top:14px; }
 footer { text-align:center; color:#999; font-family:-apple-system, sans-serif; font-size:13px; padding:30px; }
 @media (max-width:700px){ .grid { grid-template-columns:repeat(2,1fr); } }
 </style></head>
@@ -58,6 +59,12 @@ footer { text-align:center; color:#999; font-family:-apple-system, sans-serif; f
   </div>
 </header>
 <div class="warn"><b>⚠️ Weather changes every hour.</b> The weather changes every hour. The same place looks completely different under sunlight, under clouds, under snow — expect to be surprised, and take the same shots twice. Trust us on this one. And before you drive anywhere: install the Icelandic Met Office app (Veður) and check road.is for road closures. The weather genuinely changes about every hour.</div>
+<section id="route-map">
+  <div class="beat"><span class="day">The route</span><h2>The Whole Trip on One Map</h2></div>
+  <p>Six days, 739 km, one little white Polo. Every stop is color-coded by day — this is the
+  actual route we drove, tracked from the photos' GPS.</p>
+  <img class="mapimg" src="images/route-map.png" alt="Iceland trip route map, color-coded by day" loading="lazy">
+</section>
 <main>
     <section id="newark">
       <div class="beat"><span class="day">Day 1 · Mar 24</span><h2>1. The Night Before — Newark</h2></div>
