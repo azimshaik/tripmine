@@ -54,10 +54,11 @@ uv run --with pillow python scripts/render_static_map.py tracker/timeline.json -
 
 ## Example output
 
-A real dogfood: the **Iceland 2019 story page** — 8 story beats, 6 real photos each,
+A real dogfood: the **Iceland 2019 story page** — 12 story beats, 65 real photos,
 built entirely from EXIF GPS + metadata:
 
-→ [`story/iceland-2019/index.html`](story/iceland-2019/index.html)
+→ **Live page (any device):** https://azimshaik.github.io/tripmine/story/iceland-2019/
+→ Source: [`story/iceland-2019/index.html`](story/iceland-2019/index.html)
 
 ## License
 
